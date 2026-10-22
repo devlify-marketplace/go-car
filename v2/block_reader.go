@@ -80,6 +80,11 @@ func NewBlockReader(r io.Reader, opts ...Option) (*BlockReader, error) {
 		// fast forward to the beginning of data payload by subtracting pragma and header size from
 		// dataOffset.
 		rs := internalio.ToByteReadSeeker(r)
+		// A pipe-backed os.File exposes Seek without supporting it. Hide that
+		// method to select the forward-only adapter when querying its position fails.
+		if _, err := rs.Seek(0, io.SeekCurrent); err != nil {
+			rs = internalio.ToByteReadSeeker(struct{ io.Reader }{r})
+		}
 		if _, err := rs.Seek(int64(v2h.DataOffset)-PragmaSize-HeaderSize, io.SeekCurrent); err != nil {
 			return nil, err
 		}

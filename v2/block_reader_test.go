@@ -321,6 +321,30 @@ func TestBlockReader(t *testing.T) {
 			reader:   func() io.Reader { return bytes.NewReader(v2padbuf.Bytes()) },
 			v1offset: uint64(carv2.PragmaSize+carv2.HeaderSize) + 100,
 		},
+		{
+			name: "v2 w/ReadSeeker only",
+			reader: func() io.Reader {
+				return struct{ io.ReadSeeker }{bytes.NewReader(v2buf.Bytes())}
+			},
+			v1offset: uint64(carv2.PragmaSize + carv2.HeaderSize),
+		},
+		{
+			name:     "v2 w/os.Pipe",
+			reader:   func() io.Reader { return newPipeReader(t, v2buf.Bytes()) },
+			v1offset: uint64(carv2.PragmaSize + carv2.HeaderSize),
+		},
+		{
+			name:     "v2 padded w/os.Pipe",
+			reader:   func() io.Reader { return newPipeReader(t, v2padbuf.Bytes()) },
+			v1offset: uint64(carv2.PragmaSize+carv2.HeaderSize) + 100,
+		},
+		{
+			name: "v2 w/ByteReadSeeker pipe",
+			reader: func() io.Reader {
+				return byteReaderPipe{newPipeReader(t, v2buf.Bytes())}
+			},
+			v1offset: uint64(carv2.PragmaSize + carv2.HeaderSize),
+		},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			req := require.New(t)
@@ -371,6 +395,35 @@ func TestBlockReader(t *testing.T) {
 			req.ErrorIs(err, io.EOF)
 		})
 	}
+}
+
+type byteReaderPipe struct {
+	*os.File
+}
+
+func (r byteReaderPipe) ReadByte() (byte, error) {
+	var b [1]byte
+	_, err := io.ReadFull(r.File, b[:])
+	return b[0], err
+}
+
+func newPipeReader(t *testing.T, data []byte) *os.File {
+	t.Helper()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		defer w.Close()
+		_, _ = w.Write(data)
+	}()
+	t.Cleanup(func() {
+		// Closing both ends also unblocks the writer after a failed assertion.
+		r.Close()
+		w.Close()
+		<-done
+	})
+	return r
 }
 
 type readerOnly struct {

@@ -140,6 +140,12 @@ func NewReadOnly(backing io.ReaderAt, idx index.Index, opts ...carv2.Option) (*R
 func readVersion(at io.ReaderAt, opts ...carv2.Option) (uint64, error) {
 	var rr io.Reader
 	switch r := at.(type) {
+	case io.ReadSeeker:
+		// Read the CAR header from the start regardless of the sequential offset.
+		if _, err := r.Seek(0, io.SeekStart); err != nil {
+			return 0, err
+		}
+		rr = r
 	case io.Reader:
 		rr = r
 	default:

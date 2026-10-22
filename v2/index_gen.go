@@ -185,7 +185,8 @@ func GenerateIndexFromFile(path string, opts ...Option) (index.Index, error) {
 
 // ReadOrGenerateIndex accepts both CARv1 and CARv2 formats, and reads or generates an index for it.
 // When the given reader is in CARv1 format an index is always generated.
-// For a payload in CARv2 format, an index is only generated if Header.HasIndex returns false.
+// For a payload in CARv2 format, an index is generated if it is absent, or if StoreIdentityCIDs
+// is enabled and the existing index is not marked as fully indexed.
 // An error is returned for all other formats, i.e. pragma with versions other than 1 or 2.
 //
 // Note, the returned index lives entirely in memory and will not depend on the
@@ -211,8 +212,9 @@ func ReadOrGenerateIndex(rs io.ReadSeeker, opts ...Option) (index.Index, error) 
 		if err != nil {
 			return nil, err
 		}
-		// If index is present, then no need to generate; decode and return it.
-		if v2r.Header.HasIndex() {
+		// Reuse an existing index only if it satisfies the identity-CID option.
+		fullyIndexed := v2r.Header.Characteristics.IsFullyIndexed()
+		if v2r.Header.HasIndex() && (!v2r.opts.StoreIdentityCIDs || fullyIndexed) {
 			ir, err := v2r.IndexReader()
 			if err != nil {
 				return nil, err

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"path"
 
 	blocks "github.com/ipfs/go-block-format"
@@ -57,7 +58,20 @@ func CreateCar(c *cli.Context) error {
 		return fmt.Errorf("invalid CAR version %d", c.Int("version"))
 	}
 
-	cdest, err := blockstore.OpenReadWrite(c.String("file"), []cid.Cid{proxyRoot}, options...)
+	flags := os.O_RDWR | os.O_CREATE
+	if !c.Bool("append") {
+		flags |= os.O_EXCL
+	}
+	f, err := os.OpenFile(c.String("file"), flags, 0o666)
+	if err != nil {
+		if os.IsExist(err) {
+			return fmt.Errorf("output file already exists; use --append to allow resuming: %w", err)
+		}
+		return err
+	}
+	defer f.Close()
+
+	cdest, err := blockstore.OpenReadWriteFile(f, []cid.Cid{proxyRoot}, options...)
 	if err != nil {
 		return err
 	}
@@ -69,6 +83,9 @@ func CreateCar(c *cli.Context) error {
 	}
 
 	if err := cdest.Finalize(); err != nil {
+		return err
+	}
+	if err := f.Close(); err != nil {
 		return err
 	}
 	// re-open/finalize with the final root.

@@ -1,0 +1,76 @@
+# Existing empty destinations require explicit opt-in, for both CAR versions.
+cp empty empty-v1.car
+! car create --version=1 --file=empty-v1.car foo.txt
+stderr 'output file already exists'
+cmp empty empty-v1.car
+car create --append --version=1 --file=empty-v1.car foo.txt
+car verify empty-v1.car
+
+cp empty empty-v2.car
+! car create --version=2 --file=empty-v2.car foo.txt
+stderr 'output file already exists'
+cmp empty empty-v2.car
+car create --append --version=2 --file=empty-v2.car foo.txt
+car verify empty-v2.car
+
+# Existing populated CARs are rejected without changing their contents.
+cp empty-v1.car original-v1.car
+! car create --version=1 --file=empty-v1.car bar.txt
+stderr 'output file already exists'
+cmp empty-v1.car original-v1.car
+
+cp empty-v2.car original-v2.car
+! car create --version=2 --file=empty-v2.car bar.txt
+stderr 'output file already exists'
+cmp empty-v2.car original-v2.car
+
+# --append retains the existing header checks for finalized CARs.
+! car create --append --version=1 --file=empty-v1.car bar.txt
+stderr 'cannot resume on file with mismatching data header'
+cmp empty-v1.car original-v1.car
+! car create --append --version=2 --file=empty-v2.car bar.txt
+stderr 'cannot resume on file with mismatching data header'
+cmp empty-v2.car original-v2.car
+
+# A failed create leaves an unfinished CAR that --append can resume.
+! car create --version=1 --file=resume-v1.car missing.txt
+exists resume-v1.car
+car create --append --version=1 --file=resume-v1.car foo.txt
+car verify resume-v1.car
+! car create --version=2 --file=resume-v2.car missing.txt
+exists resume-v2.car
+car create --append --version=2 --file=resume-v2.car foo.txt
+car verify resume-v2.car
+
+# Arbitrary data is never truncated, even with --append.
+cp foo.txt random.car
+! car create --file=random.car bar.txt
+stderr 'output file already exists'
+cmp random.car foo.txt
+! car create --append --file=random.car bar.txt
+cmp random.car foo.txt
+
+# A directory or symlink is also an existing destination.
+mkdir directory.car
+! car create --file=directory.car foo.txt
+stderr 'output file already exists'
+[symlink] symlink linked.car -> original-v2.car
+[symlink] ! car create --file=linked.car bar.txt
+[symlink] stderr 'output file already exists'
+[symlink] cmp original-v2.car empty-v2.car
+[symlink] symlink dangling.car -> absent.car
+[symlink] ! car create --file=dangling.car foo.txt
+[symlink] stderr 'output file already exists'
+[symlink] ! exists absent.car
+
+# --append can also create a new destination.
+car create --append --version=1 --file=new-v1.car foo.txt
+car verify new-v1.car
+car create --append --version=2 --file=new-v2.car foo.txt
+car verify new-v2.car
+
+-- empty --
+-- foo.txt --
+foo content
+-- bar.txt --
+bar content

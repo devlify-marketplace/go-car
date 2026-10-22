@@ -30,6 +30,11 @@ COMMANDS:
    help, h        Shows a list of commands or help for one command
 ```
 
+`car create` requires a new output path by default. Use `--append` to opt in to
+opening an existing output file. This retains the blockstore's existing resumption
+checks; it does not allow appending to arbitrary finalized CAR files or overwriting
+invalid data.
+
 ## Install
 
 To install the latest version of `car`, run:

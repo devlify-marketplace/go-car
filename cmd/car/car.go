@@ -66,6 +66,10 @@ func main1() int {
 						TakesFile: true,
 					},
 					&cli.BoolFlag{
+						Name:  "append",
+						Usage: "Allow resuming an existing output file",
+					},
+					&cli.BoolFlag{
 						Name:  "no-wrap",
 						Usage: "Do not wrap the files in a directory",
 					},

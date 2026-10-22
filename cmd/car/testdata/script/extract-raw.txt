@@ -1,0 +1,41 @@
+# A small unwrapped file is stored as a raw root, with no filename metadata.
+env RAW_CID=bafkreih5nmdttx4kdmthclmf5ku2jaab7vfyih7rmauxjsvx3egz3phwhi
+car create --no-wrap --file=raw.car file.txt
+car root raw.car
+stdout '^bafkreih5nmdttx4kdmthclmf5ku2jaab7vfyih7rmauxjsvx3egz3phwhi$'
+
+# Extract to a directory using the root CID as the filename, even without verbose.
+mkdir actual
+car extract -f raw.car -o actual
+stderr 'raw root .* is not wrapped in a UnixFS directory'
+stderr '^extracted 1 file\(s\)$'
+cmp actual/${RAW_CID} file.txt
+! exists actual/unknown
+
+# stdout contains only the raw bytes; the fallback warning stays on stderr.
+car extract -f raw.car -o -
+cmp stdout file.txt
+stderr 'raw root .* is not wrapped in a UnixFS directory'
+stderr '^extracted 1 file\(s\)$'
+
+# CARv1 and the default output directory are supported too.
+car create --no-wrap --version=1 --file=raw-v1.car file.txt
+car extract -f raw-v1.car
+cmp ${RAW_CID} file.txt
+stderr '^extracted 1 file\(s\)$'
+
+# CARv1 streaming input uses the same raw-root fallback.
+mkdir actual-stdin
+stdin raw-v1.car
+car extract -f - -o actual-stdin
+cmp actual-stdin/${RAW_CID} file.txt
+stderr '^extracted 1 file\(s\)$'
+
+# A raw root has no child paths. Do not extract unrelated data for a path request.
+mkdir actual-path
+! car extract -f raw.car -o actual-path missing.txt
+stderr '^no files extracted$'
+! exists actual-path/${RAW_CID}
+
+-- file.txt --
+raw file content

@@ -48,10 +48,32 @@ func ExtractFromFile(c context.Context, carPath string, outputDir string, logger
 
 func ExtractToDir(c context.Context, ls *ipld.LinkSystem, root cid.Cid, outputDir string, path []string, verbose bool, logger io.Writer) (int, error) {
 	if root.Prefix().Codec == cid.Raw {
-		if verbose {
-			fmt.Fprintf(logger, "skipping raw root %s\n", root)
+		// Raw blocks have no child paths or filename metadata.
+		if len(path) > 0 {
+			if verbose {
+				fmt.Fprintf(logger, "skipping raw root %s\n", root)
+			}
+			return 0, nil
 		}
-		return 0, nil
+		raw, err := ls.LoadRaw(ipld.LinkContext{Ctx: c}, cidlink.Link{Cid: root})
+		if err != nil {
+			return 0, err
+		}
+		var outputName string
+		outputDescription := "stdout"
+		if outputDir != "-" {
+			outputResolvedDir, err := filepath.EvalSymlinks(outputDir)
+			if err != nil {
+				return 0, err
+			}
+			outputName = filepath.Join(outputResolvedDir, root.String())
+			outputDescription = outputName
+		}
+		if err := extractFile(c, ls, basicnode.NewBytes(raw), outputName); err != nil {
+			return 0, err
+		}
+		fmt.Fprintf(logger, "warning: raw root %s is not wrapped in a UnixFS directory; extracting to %s\n", root, outputDescription)
+		return 1, nil
 	}
 
 	pbn, err := ls.Load(ipld.LinkContext{}, cidlink.Link{Cid: root}, dagpb.Type.PBNode)
